@@ -279,6 +279,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   #mobnav{display:none!important}
   #notif{bottom:14px}
 }
+/* Affichage IHM : noms en MAJUSCULES (stockage inchange) */
+.pname,.sname,#spop-sel,#p-name,.ptbl td.nm,.dupwarn b{text-transform:uppercase}
+/* Avertissement doublon titulaire */
+.dupwarn{background:#3a1500;border:1px solid #7a3a00;color:#ffcf8a;font-size:10.5px;font-weight:600;padding:8px 10px;border-radius:6px;margin-bottom:10px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -332,6 +336,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <button class="btn btn-red btn-sm"   onclick="openAddPlayer()">+ Ajouter un joueur</button>
       <button class="btn btn-ghost btn-sm" onclick="openImportText()">&#128203; Importer liste texte</button>
       <button class="btn btn-ghost btn-sm" onclick="openImportImg()">&#128247; Importer depuis image</button>
+      <button class="btn btn-ghost btn-sm" onclick="openDuplicate()">&#8644; Dupliquer l'effectif&#8230;</button>
+      <button class="btn btn-del btn-sm"   onclick="clearRoster()">&#128465; Vider l'effectif</button>
       <button class="btn btn-del btn-sm"   onclick="resetLineup()">&#8635; R&#233;initialiser la compo</button>
     </div>
   </div>
@@ -545,6 +551,32 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <button class="btn btn-ghost"          onclick="closeM('mii')">Annuler</button>
       <button class="btn btn-dark" id="ban"  onclick="analyzeImg()" disabled>&#128269; Analyser</button>
       <button class="btn btn-red"  id="bim"  onclick="confirmImportImg()" disabled>Importer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DUPLIQUER EFFECTIF -->
+<div class="mover" id="mdup" style="display:none">
+  <div class="mdl" style="max-width:380px">
+    <div class="mhdr"><h2>Dupliquer un effectif</h2><button class="mcls" onclick="closeM('mdup')">&#215;</button></div>
+    <div class="mbdy">
+      <p style="font-size:12px;color:#888;margin-bottom:13px">Cat&#233;gorie <b id="dup-cat" style="color:#CC0000"></b>. Les joueurs manquants (compar&#233;s par pr&#233;nom + nom) sont copi&#233;s dans l'effectif de destination, <b>non plac&#233;s</b>. Aucun joueur existant n'est &#233;cras&#233;.</p>
+      <div class="row2">
+        <div class="fg"><label class="mlbl">Copier depuis</label>
+          <select class="msel" id="dup-src">
+            <option value="1">&#201;quipe 1</option><option value="2">&#201;quipe 2</option><option value="3">&#201;quipe 3</option>
+          </select>
+        </div>
+        <div class="fg"><label class="mlbl">Vers</label>
+          <select class="msel" id="dup-dst">
+            <option value="1">&#201;quipe 1</option><option value="2">&#201;quipe 2</option><option value="3">&#201;quipe 3</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-ghost" onclick="closeM('mdup')">Annuler</button>
+      <button class="btn btn-red" onclick="confirmDuplicate()">Dupliquer</button>
     </div>
   </div>
 </div>
@@ -1043,6 +1075,65 @@ function autoNum(){
 }
 
 // ============================================================
+//  EFFECTIF : vider / dupliquer + detection doublons (prenom+nom)
+// ============================================================
+function normName(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim(); }
+function clearRoster(){
+  const list=teamPlayers();
+  if(!list.length){toast('Effectif déjà vide');return;}
+  if(!confirm('Supprimer les '+list.length+' joueur(s) de '+curCat+' Équipe '+curTeam+' ?\nLeurs placements et convocations seront aussi effacés.'))return;
+  const ids=new Set(list.map(p=>p.id));
+  Object.values(S.lineups).forEach(lu=>{
+    lu.slots.forEach(s=>{if(ids.has(s.pid))s.pid=null;});
+    if(Array.isArray(lu.convoked)) lu.convoked=lu.convoked.filter(x=>!ids.has(x));
+  });
+  S.players=S.players.filter(p=>!ids.has(p.id));
+  save(); if(!isManage)refresh(); else renderAllPlayers();
+  toast(list.length+' joueur(s) supprimé(s)');
+}
+function openDuplicate(){
+  document.getElementById('dup-cat').textContent=curCat;
+  document.getElementById('dup-src').value=String(curTeam);
+  document.getElementById('dup-dst').value=String(curTeam===1?2:1);
+  openM('mdup');
+}
+function confirmDuplicate(){
+  const src=parseInt(document.getElementById('dup-src').value);
+  const dst=parseInt(document.getElementById('dup-dst').value);
+  if(src===dst){toast('Choisissez deux équipes différentes');return;}
+  const srcList=S.players.filter(p=>p.cat===curCat&&Number(p.team)===src);
+  if(!srcList.length){toast('L\'équipe source est vide');return;}
+  const dstNames=new Set(S.players.filter(p=>p.cat===curCat&&Number(p.team)===dst).map(p=>normName(p.name)));
+  let added=0;
+  srcList.forEach(p=>{
+    const k=normName(p.name);
+    if(dstNames.has(k))return;
+    S.players.push({id:genId(),name:p.name,num:p.num,pos:p.pos,cat:curCat,team:dst});
+    dstNames.add(k); added++;
+  });
+  save(); closeM('mdup');
+  if(!isManage)refresh(); else renderAllPlayers();
+  const skipped=srcList.length-added;
+  toast(added+' joueur(s) copié(s) vers Équipe '+dst+(skipped>0?' · '+skipped+' déjà présent(s)':''));
+}
+function starterConflicts(){
+  const by={};
+  [1,2,3].forEach(t=>{
+    const lu=S.lineups[curCat+'-'+t];
+    if(!lu||!lu.slots)return;
+    lu.slots.forEach(s=>{
+      if(!s.pid)return;
+      const pl=S.players.find(p=>p.id===s.pid);
+      if(!pl)return;
+      const k=normName(pl.name);
+      if(!by[k]) by[k]={name:pl.name,teams:new Set()};
+      by[k].teams.add(t);
+    });
+  });
+  return Object.values(by).filter(o=>o.teams.size>1).map(o=>({name:o.name,teams:[...o.teams].sort()}));
+}
+
+// ============================================================
 //  STARTERS LIST
 // ============================================================
 function renderSL(){
@@ -1050,7 +1141,10 @@ function renderSL(){
   const sids=starterIds();
   const conv=convokedIds();
   const subs=pls.filter(p=>conv.includes(p.id)&&!sids.includes(p.id));
-  let h='<div class="cvhead">\u2705 Convoqu\u00e9s du jour</div>';
+  const conf=starterConflicts();
+  let h='';
+  if(conf.length){ h+='<div class="dupwarn" title="Détection par prénom + nom : deux vrais homonymes seraient signalés à tort.">⚠ Doublon titulaire entre équipes :<br>'+conf.map(c=>'<b>'+esc(c.name)+'</b> — '+c.teams.map(t=>'Éq.'+t).join(' &amp; ')).join('<br>')+'</div>'; }
+  h+='<div class="cvhead">\u2705 Convoqu\u00e9s du jour</div>';
   h+='<div class="slh">Titulaires <span class="slcnt">'+sids.length+'/'+lu.slots.length+'</span></div>';
   lu.slots.forEach((sl,i)=>{
     const p=sl.pid?pls.find(x=>x.id===sl.pid):null;
@@ -1177,7 +1271,7 @@ function renderAllPlayers(){
   if(!list.length){el.innerHTML='<div style="color:#444;padding:14px;text-align:center;font-size:12px">Aucun joueur.</div>';return;}
   let h='<table class="ptbl"><thead><tr><th>#</th><th>Nom</th><th>Poste</th><th>Cat.</th><th>Eq.</th><th></th></tr></thead><tbody>';
   list.forEach(p=>{
-    h+='<tr><td>'+(p.num||'\u2014')+'</td><td>'+esc(p.name)+'</td><td>'+(p.pos||'\u2014')+'</td><td>'+p.cat+'</td><td>'+p.team+'</td>'
+    h+='<tr><td>'+(p.num||'\u2014')+'</td><td class="nm">'+esc(p.name)+'</td><td>'+(p.pos||'\u2014')+'</td><td>'+p.cat+'</td><td>'+p.team+'</td>'
       +'<td style="display:flex;gap:3px"><button class="btn btn-ghost btn-xs" onclick="openEditPlayer(\''+p.id+'\')">&#9998;</button>'
       +'<button class="btn btn-del btn-xs" onclick="delPlayer(\''+p.id+'\')">&#10005;</button></td></tr>';
   });
@@ -1330,7 +1424,7 @@ async function buildSheet(){
     ctx.fillStyle=idx%2===0?'#f8f8f8':'#fff';ctx.fillRect(listX,ly,listW,21);
     ctx.fillStyle='#CC0000';ctx.font='bold 10.5px Arial,sans-serif';ctx.textAlign='left';ctx.fillText(String(sl.num),listX+6,ly+14);
     ctx.fillStyle='#999';ctx.font='9px Arial,sans-serif';ctx.fillText(sl.label,listX+22,ly+14);
-    ctx.fillStyle='#111';ctx.font=(p?'bold ':'')+'10.5px Arial,sans-serif';ctx.fillText(p?p.name:'\u2014',listX+46,ly+14);
+    ctx.fillStyle='#111';ctx.font=(p?'bold ':'')+'10.5px Arial,sans-serif';ctx.fillText(p?p.name.toUpperCase():'\u2014',listX+46,ly+14);
     ctx.strokeStyle='#ececec';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(listX,ly+21);ctx.lineTo(listX+listW,ly+21);ctx.stroke();
     ly+=21;
   });
@@ -1340,7 +1434,7 @@ async function buildSheet(){
     subs.forEach((p,idx)=>{
       ctx.fillStyle=idx%2===0?'#f8f8f8':'#fff';ctx.fillRect(listX,ly,listW,19);
       ctx.fillStyle='#555';ctx.font='9px Arial,sans-serif';ctx.fillText(p.pos||'\u2014',listX+6,ly+13);
-      ctx.fillStyle='#111';ctx.font='10.5px Arial,sans-serif';ctx.fillText(p.name,listX+28,ly+13);
+      ctx.fillStyle='#111';ctx.font='10.5px Arial,sans-serif';ctx.fillText(p.name.toUpperCase(),listX+28,ly+13);
       ctx.strokeStyle='#ececec';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(listX,ly+19);ctx.lineTo(listX+listW,ly+19);ctx.stroke();
       ly+=19;
     });
