@@ -842,12 +842,12 @@ function slotPositions(fmt){
   const lines=fmt.split('-').map(Number);
   const pos=[];
   const totalLines=lines.length;
-  const margin=36;
-  const usableH=PH-margin*2;
+  const mTop=30, mBot=60;            // marge basse agrandie pour le gardien (nom sur 2 lignes)
+  const usableH=PH-mTop-mBot;
   const rowStep=usableH/(totalLines+1);
-  pos.push({x:PW/2,y:PH-margin});
+  pos.push({x:PW/2,y:PH-mBot});      // gardien remonte
   lines.forEach((cnt,li)=>{
-    const y=PH-margin-rowStep*(li+1);
+    const y=PH-mBot-rowStep*(li+1);
     for(let i=0;i<cnt;i++){pos.push({x:(PW/(cnt+1))*(i+1),y});}
   });
   return pos;
@@ -891,7 +891,7 @@ function drawGrass(ctx){
 
 function drawSlotAt(ctx,x,y,sl,pl){
   if(pl){
-    drawJersey(ctx,x,y,sl.num,firstName(pl.name),sl.label);
+    drawJersey(ctx,x,y,sl.num,pl.name,sl.label);
   } else {
     ctx.save();
     ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=1.5;
@@ -923,10 +923,12 @@ function drawJersey(ctx,x,y,num,name,lbl){
   ctx.globalAlpha=1;
   ctx.fillStyle='#fff';ctx.font='bold 14px Arial,sans-serif';ctx.textAlign='center';
   ctx.fillText(String(num||''),x,jy+h/2+7);
-  ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;
-  ctx.font='bold 8.5px Arial,sans-serif';ctx.fillStyle='#fff';
-  const sn=name.length>10?name.slice(0,9)+'.':name;
-  ctx.fillText(sn.toUpperCase(),x,jy+h+13);
+  ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;ctx.fillStyle='#fff';
+  const _p=String(name||'').split(' ');const _pre=_p[0]||'';const _nom=_p.slice(1).join(' ');
+  const _tr=(t,n)=>t.length>n?t.slice(0,n-1)+'.':t;
+  ctx.font='bold 8.5px Arial,sans-serif';
+  ctx.fillText(_tr(_pre,12).toUpperCase(),x,jy+h+11);
+  if(_nom){ctx.font='bold 8px Arial,sans-serif';ctx.fillText(_tr(_nom,13).toUpperCase(),x,jy+h+20);}
   ctx.shadowBlur=0;
   ctx.fillStyle='rgba(255,255,255,.6)';ctx.font='7.5px Arial,sans-serif';
   ctx.fillText(lbl,x,jy-3);
