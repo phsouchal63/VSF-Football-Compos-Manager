@@ -211,8 +211,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   .hdr-r .btn-ghost{font-size:11px;padding:5px 8px}
   /* Cat tabs plus compacts */
   .ctab{padding:9px 11px;font-size:11.5px}
-  /* Team tabs */
-  .ttab{padding:6px 12px;font-size:11px}
+  /* Team tabs - selecteur segmente plein largeur, bien visible */
+  #ttabs{padding:7px 10px;gap:6px;background:#1a1a1a}
+  .ttab{flex:1;text-align:center;padding:10px 0;font-size:12.5px;font-weight:700;border-radius:7px;border:1px solid var(--brd3);background:#242424;color:#9a9a9a}
+  .ttab.active{background:var(--red);color:#fff;border-color:var(--red);box-shadow:0 2px 8px rgba(226,0,26,.35)}
   /* Workspace : colonne unique, géré par les onglets mobile */
   #ws{display:block;flex:none;height:auto;overflow:visible}
   #rp,#ip{display:none}           /* cachés par défaut, affichés via onglets */
@@ -227,7 +229,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   /* Info panel mobile */
   #ip.mob-active{flex-direction:column;height:calc(100vh - 180px);overflow-y:auto}
   /* Manage view */
-  #mv{height:auto;min-height:calc(100vh - 180px);padding:12px 14px}
+  #mv{height:auto;min-height:calc(100vh - 180px);padding:12px 14px calc(80px + env(safe-area-inset-bottom)) 14px;-webkit-overflow-scrolling:touch}
   /* Notification au-dessus bottom nav */
   #notif{bottom:72px;right:10px;font-size:11.5px;padding:8px 14px}
   /* Slot popup pleine largeur en bas */
@@ -278,6 +280,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   #pcontainer{height:82vh;min-height:300px}
   #mobnav{display:none!important}
   #notif{bottom:14px}
+  /* Selecteur d'equipe bien visible en paysage */
+  #ttabs{display:flex!important;gap:6px;padding:6px 10px;background:#1a1a1a}
+  .ttab{flex:0 0 auto;padding:9px 18px;font-size:12.5px;font-weight:700;border-radius:7px;border:1px solid var(--brd3);background:#242424;color:#9a9a9a}
+  .ttab.active{background:var(--red);color:#fff;border-color:var(--red)}
 }
 /* Affichage IHM : noms en MAJUSCULES (stockage inchange) */
 .pname,.sname,#spop-sel,#p-name,.ptbl td.nm,.dupwarn b{text-transform:uppercase}
