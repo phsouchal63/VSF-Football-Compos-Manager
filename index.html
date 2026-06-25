@@ -418,6 +418,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <div id="apt" style="overflow-x:auto;background:#1a1a1a;border-radius:6px"></div>
   </div>
   <div class="card">
+    <div class="ct">&#128194; Sauvegarde automatique (fichier)</div>
+    <div id="filebox"></div>
+  </div>
+  <div class="card">
     <div class="ct">&#128737; S&#233;curit&#233; des donn&#233;es</div>
     <div id="storestat" style="font-size:11.5px;color:#aaa;line-height:1.6">&#8230;</div>
   </div>
@@ -640,7 +644,7 @@ let pitchScale=1;
 //  PERSISTENCE
 // ============================================================
 let saveWarned=false;
-function save(force){ try{var __j=JSON.stringify(S);localStorage.setItem('vsf2',__j);if((S.players&&S.players.length>0)||force===true){localStorage.setItem('vsf2_bak',__j);}}catch(e){ if(!saveWarned){saveWarned=true;toast('\u26a0 Enregistrement local impossible \u2014 exportez en JSON');} } }
+function save(force){ fsDirty=true; try{var __j=JSON.stringify(S);localStorage.setItem('vsf2',__j);if((S.players&&S.players.length>0)||force===true){localStorage.setItem('vsf2_bak',__j);}}catch(e){ if(!saveWarned){saveWarned=true;toast('\u26a0 Enregistrement local impossible \u2014 exportez en JSON');} } try{scheduleFileWrite();}catch(e){} }
 function loadSt(){
   try{
     function __rd(k){try{var r=localStorage.getItem(k);if(!r)return null;var d=JSON.parse(r);return (d&&typeof d==='object')?d:null;}catch(e){return null;}}
@@ -662,6 +666,7 @@ function doExportJSON(){
   const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
   const dt=new Date().toISOString().split('T')[0];
   const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='vsf-compos-'+dt+'.json';a.click();try{localStorage.setItem('vsf2_lastBackup',String(Date.now()));}catch(e){}
+  fsDirty=false;
   toast('JSON export\u00e9 \u2713');
 }
 function triggerImport(){ document.getElementById('jin').click(); }
@@ -674,6 +679,113 @@ function doImportJSON(ev){
   };
   r.readAsText(f);ev.target.value='';
 }
+
+
+// ============================================================
+//  PERSISTANCE FICHIER (File System Access API) - robuste
+//  Le fichier sur le disque devient la memoire durable : il
+//  survit meme si le navigateur purge ses donnees a la fermeture.
+// ============================================================
+var fsHandle=null, fsName='', fsTimer=null, fsDirty=false, fsPending=null;
+var fsSupported = (typeof window!=='undefined' && 'showOpenFilePicker' in window && 'showSaveFilePicker' in window);
+var __storagePersisted=null;
+
+function __idb(cb){ try{ var rq=indexedDB.open('vsf_fs',1);
+  rq.onupgradeneeded=function(){ rq.result.createObjectStore('h'); };
+  rq.onsuccess=function(){ cb(rq.result); }; rq.onerror=function(){ cb(null); };
+}catch(e){ cb(null); } }
+function __idbPut(k,v){ __idb(function(db){ if(!db)return; try{db.transaction('h','readwrite').objectStore('h').put(v,k);}catch(e){} }); }
+function __idbGet(k,cb){ __idb(function(db){ if(!db){cb(null);return;} try{var r=db.transaction('h','readonly').objectStore('h').get(k); r.onsuccess=function(){cb(r.result||null);}; r.onerror=function(){cb(null);};}catch(e){cb(null);} }); }
+function __idbDel(k){ __idb(function(db){ if(!db)return; try{db.transaction('h','readwrite').objectStore('h').delete(k);}catch(e){} }); }
+
+async function writeToFile(){
+  if(!fsHandle)return false;
+  try{ var w=await fsHandle.createWritable(); await w.write(JSON.stringify(S,null,2)); await w.close();
+    fsDirty=false; try{localStorage.setItem('vsf2_lastBackup',String(Date.now()));}catch(e){} return true;
+  }catch(e){ return false; }
+}
+function scheduleFileWrite(){ if(!fsHandle)return; if(fsTimer)clearTimeout(fsTimer);
+  fsTimer=setTimeout(function(){ writeToFile().then(updateFileUI); },600); }
+
+async function linkFileCreate(){
+  if(!fsSupported){ toast('⚠ Ce navigateur ne gère pas le fichier auto — utilise Exporter JSON'); return; }
+  try{
+    var h=await window.showSaveFilePicker({suggestedName:'vsf-compos.json',types:[{description:'Sauvegarde VSF',accept:{'application/json':['.json']}}]});
+    fsHandle=h; fsName=h.name||'vsf-compos.json'; await writeToFile(); __idbPut('handle',h);
+    updateFileUI(); updateStoreStat();
+    toast('📂 Fichier lié — sauvegarde automatique activée ✓');
+  }catch(e){}
+}
+async function linkFileOpen(){
+  if(!fsSupported){ triggerImport(); return; }
+  try{
+    var arr=await window.showOpenFilePicker({types:[{description:'Sauvegarde VSF',accept:{'application/json':['.json']}}],multiple:false});
+    var h=arr[0]; var f=await h.getFile(); var d=JSON.parse(await f.text());
+    S.players=d.players||[]; S.lineups=d.lineups||{};
+    fsHandle=h; fsName=h.name||'vsf-compos.json'; save(); __idbPut('handle',h);
+    refresh(); var sb=document.getElementById('startbanner'); if(sb)sb.style.display='none';
+    updateFileUI(); updateStoreStat();
+    toast('📂 Données chargées et fichier lié ✓');
+  }catch(e){ if(e && e.name!=='AbortError') toast('Fichier illisible'); }
+}
+function unlinkFile(){ fsHandle=null; fsName=''; __idbDel('handle'); updateFileUI(); updateStoreStat(); toast('Fichier délié'); }
+
+function restoreFileHandle(){
+  if(!fsSupported){ updateFileUI(); return; }
+  __idbGet('handle',function(h){
+    if(!h){ updateFileUI(); return; }
+    (async function(){
+      try{
+        var perm=await h.queryPermission({mode:'readwrite'});
+        if(perm==='granted'){
+          fsHandle=h; fsName=h.name||'vsf-compos.json';
+          var f=await h.getFile(); var txt=await f.text();
+          if(txt && txt.trim()){ var d=JSON.parse(txt);
+            if((d.players&&d.players.length) || !(S.players&&S.players.length)){
+              S.players=d.players||[]; S.lineups=d.lineups||{};
+              try{localStorage.setItem('vsf2',JSON.stringify(S));}catch(e){}
+              refresh(); toast('📂 Données restaurées depuis le fichier lié ✓');
+            }
+          }
+          updateFileUI(); updateStoreStat();
+        } else { fsPending=h; updateFileUI(); }
+      }catch(e){ updateFileUI(); }
+    })();
+  });
+}
+async function reconnectFile(){
+  if(!fsPending)return;
+  try{
+    var perm=await fsPending.requestPermission({mode:'readwrite'});
+    if(perm==='granted'){
+      var h=fsPending; fsPending=null; fsHandle=h; fsName=h.name||'vsf-compos.json';
+      var f=await h.getFile(); var txt=await f.text();
+      if(txt && txt.trim()){ var d=JSON.parse(txt); if(d.players){ S.players=d.players; S.lineups=d.lineups||{}; save(); refresh(); } }
+      updateFileUI(); updateStoreStat(); toast('📂 Fichier reconnecté ✓');
+    }
+  }catch(e){}
+}
+function updateFileUI(){
+  var box=document.getElementById('filebox'); if(!box)return;
+  if(!fsSupported){
+    box.innerHTML='<div style="font-size:11.5px;color:#aaa;line-height:1.6">Ce navigateur ne gère pas la sauvegarde fichier automatique (iPhone/Safari). Utilise « Exporter / Importer JSON » ci-dessous.</div>';
+  } else if(fsHandle){
+    box.innerHTML='<div style="font-size:11.5px;color:#36c08a;line-height:1.6">📂 Lié à <b>'+fsName+'</b> — sauvegarde <b>automatique</b> à chaque modification.</div>'
+      +'<div style="display:flex;gap:7px;margin-top:8px"><button class="btn btn-dark btn-sm" onclick="unlinkFile()">Délier</button></div>';
+  } else if(fsPending){
+    box.innerHTML='<div style="font-size:11.5px;color:#e2a300;line-height:1.6">⚠ Un fichier était lié lors d’une précédente session. Clique pour le reconnecter.</div>'
+      +'<div style="display:flex;gap:7px;margin-top:8px"><button class="btn btn-red btn-sm" onclick="reconnectFile()">🔗 Reconnecter le fichier</button></div>';
+  } else {
+    box.innerHTML='<div style="font-size:11.5px;color:#aaa;line-height:1.6">Lie l’appli à un fichier <b>.json</b> sur ton disque : sauvegarde <b>automatique</b>, conservée même si le navigateur efface ses données, et partageable entre coachs.</div>'
+      +'<div style="display:flex;gap:7px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-red btn-sm" onclick="linkFileOpen()">📂 Ouvrir mon fichier</button><button class="btn btn-dark btn-sm" onclick="linkFileCreate()">➕ Créer le fichier</button></div>';
+  }
+}
+window.addEventListener('beforeunload',function(e){
+  try{ if(fsHandle)return; if(!fsDirty)return; if(!(S.players&&S.players.length))return;
+    if(__storagePersisted===false){ e.preventDefault(); e.returnValue=''; }
+  }catch(_){}
+});
+
 
 // ============================================================
 //  LINEUP
@@ -767,6 +879,7 @@ function goManage(){
   document.getElementById('apik').value=getApiKey();
   renderAllPlayers();
   updateStoreStat();
+  updateFileUI();
 }
 function goCompo(){
   isManage=false;
@@ -1683,7 +1796,12 @@ function checkStorage(){
     banner.style.display='flex';return;
   }
   if(!localStorage.getItem('vsf2')){
-    msg.innerHTML='Aucune donn\u00e9e enregistr\u00e9e sur cet appareil. Si vous avez un fichier de sauvegarde (.json), cliquez pour le restaurer.';
+    if(fsSupported){
+      msg.innerHTML='Aucune donn\u00e9e sur cet appareil. Ouvre ton <b>fichier de sauvegarde</b> (.json) pour le lier, ou cr\u00e9es-en un depuis Gestion.';
+      var rb=document.getElementById('sb-restore'); if(rb){ rb.innerHTML='\uD83D\uDCC2 Ouvrir mon fichier'; rb.setAttribute('onclick','linkFileOpen()'); }
+    } else {
+      msg.innerHTML='Aucune donn\u00e9e enregistr\u00e9e sur cet appareil. Si vous avez un fichier de sauvegarde (.json), cliquez pour le restaurer.';
+    }
     banner.style.display='flex';
   }
 }
@@ -1692,9 +1810,12 @@ function updateStoreStat(){
   var done=function(persisted){
     var bn=0; try{var d=JSON.parse(localStorage.getItem('vsf2_bak')||'{}'); bn=(d.players||[]).length;}catch(e){}
     var pl=(S.players||[]).length;
-    var head = persisted===true ? '<span style="color:#36c08a">\u2705 Stockage persistant activ\u00e9</span>'
-             : persisted===false ? '<span style="color:#e2a300">\u26a0 Stockage non garanti</span> \u2014 exportez un JSON r\u00e9guli\u00e8rement'
-             : 'Stockage : \u00e9tat inconnu';
+    __storagePersisted=persisted;
+    var head;
+    if(fsHandle){ head='<span style="color:#36c08a">\u2705 Sauvegarde automatique dans le fichier <b>'+fsName+'</b></span> \u2014 tes donn\u00e9es sont prot\u00e9g\u00e9es.'; }
+    else if(persisted===true){ head='<span style="color:#36c08a">\u2705 Stockage persistant activ\u00e9</span>'; }
+    else if(persisted===false){ head='<span style="color:#e2a300;font-weight:600">\u26a0 Stockage non garanti</span> \u2014 le navigateur peut effacer ces donn\u00e9es en fermant. Lie un fichier (carte ci-dessus) ou exporte un JSON.'; }
+    else { head='Stockage : \u00e9tat inconnu'; }
     el.innerHTML = head + '<br>Joueurs en m\u00e9moire : <b>'+pl+'</b> \u00b7 Sauvegarde de secours : <b>'+bn+'</b> joueur(s)';
   };
   try{ if(navigator.storage&&navigator.storage.persisted){ navigator.storage.persisted().then(done).catch(function(){done(null);}); } else { done(null); } }catch(e){ done(null); }
@@ -1705,7 +1826,7 @@ function setupPWA(){
     if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
     // STOCKAGE PERSISTANT : empeche Chrome de purger le localStorage (cle vsf2).
     if(navigator.storage&&navigator.storage.persist){
-      navigator.storage.persisted().then(p=>{ if(!p) navigator.storage.persist(); }).catch(()=>{});
+      navigator.storage.persisted().then(p=>{ __storagePersisted=p; if(!p) navigator.storage.persist(); }).catch(()=>{});
       var __rq=function(){ try{ navigator.storage.persisted().then(function(p){ if(!p) navigator.storage.persist(); }); }catch(e){} };
       document.addEventListener('pointerdown',__rq,{once:true});
     }
@@ -1733,6 +1854,7 @@ checkStorage();
 backupReminder();
 refresh();
 initMobile();
+restoreFileHandle();
 (()=>{const mi=getLineup().matchInfo||{};if(!mi.date){document.getElementById('mi-date').value=new Date().toISOString().split('T')[0];}})();
 </script>
 </body>
