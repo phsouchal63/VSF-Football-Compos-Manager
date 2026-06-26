@@ -130,13 +130,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 #xactions{padding:10px;border-top:1px solid var(--brd);display:flex;flex-direction:column;gap:5px;flex-shrink:0}
 #xactions .btn{width:100%;justify-content:center;font-size:11.5px}
 /* SLOT POPUP */
-#spop{position:fixed;background:#fff;border:1.5px solid #ddd;border-radius:var(--r8);box-shadow:0 8px 32px rgba(0,0,0,.25);padding:11px;z-index:600;width:206px;display:none}
-#spop.vis{display:block}
-#spop h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:7px}
-#spop-sel{width:100%;border:1px solid #ddd;border-radius:var(--r4);padding:3px;font-size:12px;height:148px;outline:none;font-family:inherit}
+#spop{position:fixed;background:#fff;border:1.5px solid #ddd;border-radius:var(--r8);box-shadow:0 8px 32px rgba(0,0,0,.25);padding:11px;z-index:600;width:206px;display:none;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px)}
+#spop.vis{display:flex;flex-direction:column}
+#spop h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:7px;flex:0 0 auto}
+#spop-sel{width:100%;border:1px solid #ddd;border-radius:var(--r4);padding:3px;font-size:12px;height:148px;min-height:66px;flex:0 1 auto;outline:none;font-family:inherit}
 #spop-sel:focus{border-color:var(--red)}
 #spop-sel option{padding:3px 4px}
-.spop-btns{display:flex;gap:5px;margin-top:7px}
+.spop-btns{display:flex;gap:5px;margin-top:7px;flex:0 0 auto}
 /* MODALS */
 .mover{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:900;display:flex;align-items:center;justify-content:center;padding:16px}
 .mdl{background:#fff;border-radius:var(--r8);box-shadow:0 12px 48px rgba(0,0,0,.35);width:100%;max-width:460px;max-height:92vh;overflow-y:auto;animation:mani .17s ease}
@@ -288,6 +288,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   #ttabs{display:flex!important;gap:6px;padding:6px 10px;background:#1a1a1a}
   .ttab{flex:0 0 auto;padding:9px 18px;font-size:12.5px;font-weight:700;border-radius:7px;border:1px solid var(--brd3);background:#242424;color:#9a9a9a}
   .ttab.active{background:var(--red);color:#fff;border-color:var(--red)}
+  /* Popup de poste : panneau centre et borne en paysage (boutons toujours visibles) */
+  #spop{left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%);width:min(380px,92vw)!important;max-height:90dvh}
+  #spop-sel{max-height:42dvh}
 }
 /* Affichage IHM : noms en MAJUSCULES (stockage inchange) */
 .pname,.sname,#spop-sel,#p-name,.ptbl td.nm,.dupwarn b{text-transform:uppercase}
@@ -1156,6 +1159,14 @@ function openSpop(idx,canvasPos,rect){
   pop.style.left=Math.min(px+24,window.innerWidth-220)+'px';
   pop.style.top=Math.max(py-70,8)+'px';
   pop.classList.add('vis');
+  // Securite : on bride la position pour que le popup (et ses boutons) reste entierement visible.
+  // En paysage tactile, le CSS le centre via !important : ces ajustements inline sont alors ignores.
+  try{
+    var pw=pop.offsetWidth, ph=pop.offsetHeight;
+    var t=Math.max(8, Math.min(parseFloat(pop.style.top)||8, window.innerHeight-ph-8));
+    var l=Math.max(8, Math.min(parseFloat(pop.style.left)||8, window.innerWidth-pw-8));
+    pop.style.top=t+'px'; pop.style.left=l+'px';
+  }catch(e){}
   sel.ondblclick=()=>confirmSlot();
 }
 function closeSpop(){document.getElementById('spop').classList.remove('vis');selSlot=null;}
