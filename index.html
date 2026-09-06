@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{
-  --red:#C00000;--red-d:#9A0000;--red-l:#E2001A;
+  --red:#C00000;--red-d:#9A0000;--red-l:#F80203;
   --blk:#1a1a1a;--bg:#111;--bg2:#1a1a1a;--bg3:#222;
   --brd:#2a2a2a;--brd2:#333;--brd3:#3a3a3a;
   --txt:#fff;--txt2:#aaa;--txt3:#666;
@@ -653,7 +653,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   <div class="mdl" style="max-width:380px">
     <div class="mhdr"><h2>Dupliquer un effectif</h2><button class="mcls" onclick="closeM('mdup')">&#215;</button></div>
     <div class="mbdy">
-      <p style="font-size:12px;color:#888;margin-bottom:13px">Cat&#233;gorie <b id="dup-cat" style="color:#E2001A"></b>. Les joueurs manquants (compar&#233;s par pr&#233;nom + nom) sont copi&#233;s dans l'effectif de destination, <b>non plac&#233;s</b>. Aucun joueur existant n'est &#233;cras&#233;.</p>
+      <p style="font-size:12px;color:#888;margin-bottom:13px">Cat&#233;gorie <b id="dup-cat" style="color:#F80203"></b>. Les joueurs manquants (compar&#233;s par pr&#233;nom + nom) sont copi&#233;s dans l'effectif de destination, <b>non plac&#233;s</b>. Aucun joueur existant n'est &#233;cras&#233;.</p>
       <div class="row2">
         <div class="fg"><label class="mlbl">Copier depuis</label>
           <select class="msel" id="dup-src">
@@ -712,7 +712,7 @@ const PW=380, PH=540, SR=28;
 // ============================================================
 let S = { players:[], lineups:{} };
 let curCat='U7', curTeam=1;
-let editPid=null, selSlot=null, numSlot=null, imgFile=null, isManage=false, movePid=null;
+let editPid=null, selSlot=null, numSlot=null, imgFile=null, isManage=false, movePid=null, armIdx=null;
 let pitchScale=1;
 
 // ============================================================
@@ -1039,8 +1039,8 @@ function renderRoster(){
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function jsvg(num){
   return '<svg viewBox="0 0 28 32" xmlns="http://www.w3.org/2000/svg">'
-    +'<path d="M2,7 L8,2 L10,7 L18,7 L20,2 L26,7 L24,11 L20,9 L20,30 L8,30 L8,9 L4,11 Z" fill="#E2001A"/>'
-    +'<path d="M10,2 L18,2 L18,9 L10,9 Z" fill="#E2001A"/>'
+    +'<path d="M2,7 L8,2 L10,7 L18,7 L20,2 L26,7 L24,11 L20,9 L20,30 L8,30 L8,9 L4,11 Z" fill="#F80203"/>'
+    +'<path d="M10,2 L18,2 L18,9 L10,9 Z" fill="#F80203"/>'
     +'<rect x="12.5" y="7" width="2.5" height="23" fill="#1a1a1a" opacity="0.5"/>'
     +'<rect x="16.5" y="7" width="2.5" height="23" fill="#1a1a1a" opacity="0.5"/>'
     +'<text x="14" y="22" text-anchor="middle" fill="white" font-size="9" font-weight="900" font-family="Arial,sans-serif">'+num+'</text>'
@@ -1084,6 +1084,11 @@ function renderPitch(){
     const pl=sl.pid?pls.find(p=>p.id===sl.pid):null;
     drawSlotAt(ctx,sp.x,sp.y,sl,pl);
   });
+  if(armIdx!==null && spos[armIdx]){
+    const ap=spos[armIdx];
+    ctx.save();ctx.strokeStyle='#F80203';ctx.lineWidth=3;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.arc(ap.x,ap.y,SR+7,0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -1121,7 +1126,7 @@ function drawJersey(ctx,x,y,num,name,lbl){
   const jx=x-w/2,jy=y-h/2-2;
   ctx.save();
   ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=7;ctx.shadowOffsetY=3;
-  ctx.fillStyle='#E2001A';
+  ctx.fillStyle='#F80203';
   ctx.beginPath();
   ctx.moveTo(jx+6,jy+8);ctx.lineTo(jx+2,jy+6);ctx.lineTo(jx,jy+12);ctx.lineTo(jx+7,jy+15);
   ctx.lineTo(jx+7,jy+h);ctx.lineTo(jx+w-7,jy+h);ctx.lineTo(jx+w-7,jy+15);
@@ -1153,24 +1158,63 @@ function firstName(n){ return (n||'').split(' ')[0]; }
 // ============================================================
 //  CANVAS EVENTS
 // ============================================================
-document.getElementById('cv').addEventListener('click',function(e){
-  const rect=this.getBoundingClientRect();
-  const mx=(e.clientX-rect.left)/pitchScale;
-  const my=(e.clientY-rect.top)/pitchScale;
-  const lu=getLineup();
-  const spos=slotPositions(lu.formation);
-  let hit=null;
-  spos.forEach((p,i)=>{ if(Math.hypot(mx-p.x,my-p.y)<SR+10)hit=i; });
-  // Mode Deplacer : le prochain tap sur un poste deplace le joueur selectionne.
-  if(movePid){
-    const pid=movePid; movePid=null;
-    if(hit!==null){ placeAtSlot(hit,pid); } else { toast('Deplacement annule'); }
-    return;
+// ---- Gestes terrain (charte UX) : tap = armer/deplacer, double-tap = numero, appui long = menu ----
+(function(){
+  const cv=document.getElementById('cv');
+  const DBL=260, LONG=480, MOVE_TOL=12;
+  let tapTimer=null, lastIdx=null, lastT=0;
+  let longTimer=null, longFired=false, downX=0, downY=0;
+  function hitAt(e){
+    const rect=cv.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)/pitchScale, my=(e.clientY-rect.top)/pitchScale;
+    const spos=slotPositions(getLineup().formation);
+    let hit=null; spos.forEach((p,i)=>{ if(Math.hypot(mx-p.x,my-p.y)<SR+10)hit=i; });
+    return hit;
   }
-  if(hit===null){closeSpop();return;}
-  const sp=spos[hit];
-  openSpop(hit,sp,this.getBoundingClientRect());
-});
+  function occupied(i){ return i!==null && !!getLineup().slots[i].pid; }
+  function disarm(){ if(armIdx!==null){ armIdx=null; renderPitch(); } }
+  function popupAt(idx){ const spos=slotPositions(getLineup().formation); openSpop(idx, spos[idx], cv.getBoundingClientRect()); }
+  function single(hit){
+    if(armIdx!==null){
+      const src=armIdx;
+      if(hit===null || hit===src){ disarm(); toast('Déplacement annulé'); return; }
+      const pid=getLineup().slots[src].pid; disarm();
+      if(pid){ placeAtSlot(hit,pid); toast('Joueur déplacé'); }
+      return;
+    }
+    if(hit===null){ closeSpop(); return; }
+    if(occupied(hit)){ armIdx=hit; renderPitch(); toast('Touche le poste d’arrivée (ou re-tape pour annuler)'); }
+    else { popupAt(hit); }
+  }
+  cv.addEventListener('click',function(e){
+    if(longFired){ longFired=false; return; }
+    const hit=hitAt(e), now=Date.now();
+    if(hit!==null && hit===lastIdx && (now-lastT)<DBL && occupied(hit)){
+      if(tapTimer){clearTimeout(tapTimer);tapTimer=null;}
+      lastIdx=null; lastT=0; disarm();
+      const s=getLineup().slots[hit]; openNumEdit(hit,s.num); return;
+    }
+    lastIdx=hit; lastT=now;
+    if(tapTimer)clearTimeout(tapTimer);
+    tapTimer=setTimeout(function(){ tapTimer=null; single(hit); }, DBL);
+  });
+  cv.addEventListener('pointerdown',function(e){
+    longFired=false; downX=e.clientX; downY=e.clientY;
+    const hit=hitAt(e); clearTimeout(longTimer);
+    if(occupied(hit)){
+      longTimer=setTimeout(function(){
+        longFired=true;
+        if(tapTimer){clearTimeout(tapTimer);tapTimer=null;}
+        lastIdx=null; disarm(); popupAt(hit);
+      }, LONG);
+    }
+  });
+  cv.addEventListener('pointermove',function(e){
+    if(Math.abs(e.clientX-downX)>MOVE_TOL||Math.abs(e.clientY-downY)>MOVE_TOL) clearTimeout(longTimer);
+  });
+  cv.addEventListener('pointerup',function(){ clearTimeout(longTimer); });
+  cv.addEventListener('pointercancel',function(){ clearTimeout(longTimer); });
+})();
 function h_approx(){return 52;}
 
 document.getElementById('cv').addEventListener('dragover',e=>e.preventDefault());
@@ -1246,7 +1290,7 @@ function openSpop(idx,canvasPos,rect){
 }
 function closeSpop(){document.getElementById('spop').classList.remove('vis');selSlot=null;}
 function editSlotNum(){ if(selSlot===null)return; var idx=selSlot,s=getLineup().slots[idx]; closeSpop(); openNumEdit(idx,s.num); }
-function startMove(){ if(selSlot===null)return; var s=getLineup().slots[selSlot]; if(!s.pid){closeSpop();return;} movePid=s.pid; closeSpop(); toast('Touche le poste de destination'); }
+function startMove(){ if(selSlot===null)return; var s=getLineup().slots[selSlot]; if(!s.pid){closeSpop();return;} armIdx=selSlot; closeSpop(); renderPitch(); toast('Touche le poste d’arrivée'); }
 function confirmSlot(){
   if(selSlot===null)return;
   assignPid(selSlot,document.getElementById('spop-sel').value||null);
@@ -1627,7 +1671,7 @@ async function buildSheet(){
   ctx.drawImage(VSF_LOGO_IMG, 10, 8, 52, 52);
   ctx.fillStyle='#fff';ctx.font='bold 20px Arial,sans-serif';ctx.textAlign='left';
   ctx.fillText(curCat+' \u2014 \u00c9quipe '+curTeam,76,30);
-  ctx.fillStyle='#E2001A';ctx.font='13px Arial,sans-serif';
+  ctx.fillStyle='#F80203';ctx.font='13px Arial,sans-serif';
   ctx.fillText('Formation : '+lu.formation,76,52);
   ctx.textAlign='right';ctx.fillStyle='#888';ctx.font='11px Arial,sans-serif';ctx.fillText(dateStr,CW-18,26);
   ctx.fillStyle='#fff';ctx.font='bold 14px Arial,sans-serif';ctx.fillText(mi.opp?'vs '+mi.opp:'Adversaire',CW-18,48);
@@ -1645,12 +1689,12 @@ async function buildSheet(){
   const listW=CW-listX-16;
   let ly=82;
   // Titulaires header
-  ctx.fillStyle='#E2001A';ctx.fillRect(listX,ly,listW,24);
+  ctx.fillStyle='#F80203';ctx.fillRect(listX,ly,listW,24);
   ctx.fillStyle='#fff';ctx.font='bold 11px Arial,sans-serif';ctx.textAlign='left';ctx.fillText('TITULAIRES',listX+9,ly+16);ly+=26;
   lu.slots.forEach((sl,idx)=>{
     const p=sl.pid?pls.find(x=>x.id===sl.pid):null;
     ctx.fillStyle=idx%2===0?'#f8f8f8':'#fff';ctx.fillRect(listX,ly,listW,21);
-    ctx.fillStyle='#E2001A';ctx.font='bold 10.5px Arial,sans-serif';ctx.textAlign='left';ctx.fillText(String(sl.num),listX+6,ly+14);
+    ctx.fillStyle='#F80203';ctx.font='bold 10.5px Arial,sans-serif';ctx.textAlign='left';ctx.fillText(String(sl.num),listX+6,ly+14);
     ctx.fillStyle='#999';ctx.font='9px Arial,sans-serif';ctx.fillText(sl.label,listX+22,ly+14);
     ctx.fillStyle='#111';ctx.font=(p?'bold ':'')+'10.5px Arial,sans-serif';ctx.fillText(p?p.name.toUpperCase():'\u2014',listX+46,ly+14);
     ctx.strokeStyle='#ececec';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(listX,ly+21);ctx.lineTo(listX+listW,ly+21);ctx.stroke();
