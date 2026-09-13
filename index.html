@@ -1416,7 +1416,7 @@ function renderSL(){
   const conf=starterConflicts();
   let h='';
   if(conf.length){ h+='<div class="dupwarn" title="Détection par prénom + nom : deux vrais homonymes seraient signalés à tort.">⚠ Doublon titulaire entre équipes :<br>'+conf.map(c=>'<b>'+esc(c.name)+'</b> — '+c.teams.map(t=>'Éq.'+t).join(' &amp; ')).join('<br>')+'</div>'; }
-  h+='<div class="cvhead">\u2705 Convoqu\u00e9s du jour</div>';
+  h+='<div class="cvhead"><svg class="vic" width="14" height="14" aria-hidden="true"><use href="#vsf-check"></use></svg> Convoqu\u00e9s du jour</div>';
   h+='<div class="slh">Titulaires <span class="slcnt">'+sids.length+'/'+lu.slots.length+'</span></div>';
   lu.slots.forEach((sl,i)=>{
     const p=sl.pid?pls.find(x=>x.id===sl.pid):null;
@@ -1665,17 +1665,18 @@ async function buildSheet(){
   const CW=1122,CH=794;
   const sc=document.createElement('canvas');sc.width=CW;sc.height=CH;
   const ctx=sc.getContext('2d');
+  try{await document.fonts.load('22px "Anton"');await document.fonts.load('700 14px "Barlow"');await document.fonts.load('400 13px "Barlow"');await document.fonts.ready;}catch(e){}
   ctx.fillStyle='#fff';ctx.fillRect(0,0,CW,CH);
   // Header
   ctx.fillStyle='#1a1a1a';ctx.fillRect(0,0,CW,68);
   ctx.drawImage(VSF_LOGO_IMG, 10, 8, 52, 52);
-  ctx.fillStyle='#fff';ctx.font='bold 20px Arial,sans-serif';ctx.textAlign='left';
-  ctx.fillText(curCat+' \u2014 \u00c9quipe '+curTeam,76,30);
-  ctx.fillStyle='#F80203';ctx.font='13px Arial,sans-serif';
+  ctx.fillStyle='#fff';ctx.font='22px "Anton"';ctx.textAlign='left';
+  ctx.fillText((curCat+' \u2014 \u00c9quipe '+curTeam).toUpperCase(),76,33);
+  ctx.fillStyle='#F80203';ctx.font='13px Barlow,Arial,sans-serif';
   ctx.fillText('Formation : '+lu.formation,76,52);
-  ctx.textAlign='right';ctx.fillStyle='#888';ctx.font='11px Arial,sans-serif';ctx.fillText(dateStr,CW-18,26);
-  ctx.fillStyle='#fff';ctx.font='bold 14px Arial,sans-serif';ctx.fillText(mi.opp?'vs '+mi.opp:'Adversaire',CW-18,48);
-  if(mi.venue){ctx.fillStyle='#888';ctx.font='10px Arial,sans-serif';ctx.fillText(mi.venue,CW-18,63);}
+  ctx.textAlign='right';ctx.fillStyle='#888';ctx.font='11px Barlow,Arial,sans-serif';ctx.fillText(dateStr,CW-18,26);
+  ctx.fillStyle='#fff';ctx.font='bold 14px Barlow,Arial,sans-serif';ctx.fillText(mi.opp?'vs '+mi.opp:'Adversaire',CW-18,48);
+  if(mi.venue){ctx.fillStyle='#888';ctx.font='10px Barlow,Arial,sans-serif';ctx.fillText(mi.venue,CW-18,63);}
   // Pitch
   const px=18,py=82;
   const ps=Math.min((CH-py-18)/PH,500/PW);
@@ -1690,23 +1691,23 @@ async function buildSheet(){
   let ly=82;
   // Titulaires header
   ctx.fillStyle='#F80203';ctx.fillRect(listX,ly,listW,24);
-  ctx.fillStyle='#fff';ctx.font='bold 11px Arial,sans-serif';ctx.textAlign='left';ctx.fillText('TITULAIRES',listX+9,ly+16);ly+=26;
+  ctx.fillStyle='#fff';ctx.font='bold 11px Barlow,Arial,sans-serif';ctx.textAlign='left';ctx.fillText('TITULAIRES',listX+9,ly+16);ly+=26;
   lu.slots.forEach((sl,idx)=>{
     const p=sl.pid?pls.find(x=>x.id===sl.pid):null;
     ctx.fillStyle=idx%2===0?'#f8f8f8':'#fff';ctx.fillRect(listX,ly,listW,21);
-    ctx.fillStyle='#F80203';ctx.font='bold 10.5px Arial,sans-serif';ctx.textAlign='left';ctx.fillText(String(sl.num),listX+6,ly+14);
-    ctx.fillStyle='#999';ctx.font='9px Arial,sans-serif';ctx.fillText(sl.label,listX+22,ly+14);
-    ctx.fillStyle='#111';ctx.font=(p?'bold ':'')+'10.5px Arial,sans-serif';ctx.fillText(p?p.name.toUpperCase():'\u2014',listX+46,ly+14);
+    ctx.fillStyle='#F80203';ctx.font='bold 10.5px Barlow,Arial,sans-serif';ctx.textAlign='left';ctx.fillText(String(sl.num),listX+6,ly+14);
+    ctx.fillStyle='#999';ctx.font='9px Barlow,Arial,sans-serif';ctx.fillText(sl.label,listX+22,ly+14);
+    ctx.fillStyle='#111';ctx.font=(p?'bold ':'')+'10.5px Barlow,Arial,sans-serif';ctx.fillText(p?p.name.toUpperCase():'\u2014',listX+46,ly+14);
     ctx.strokeStyle='#ececec';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(listX,ly+21);ctx.lineTo(listX+listW,ly+21);ctx.stroke();
     ly+=21;
   });
   if(subs.length){
     ly+=8;ctx.fillStyle='#333';ctx.fillRect(listX,ly,listW,22);
-    ctx.fillStyle='#fff';ctx.font='bold 11px Arial,sans-serif';ctx.textAlign='left';ctx.fillText('REMPLA\u00c7ANTS',listX+9,ly+15);ly+=24;
+    ctx.fillStyle='#fff';ctx.font='bold 11px Barlow,Arial,sans-serif';ctx.textAlign='left';ctx.fillText('REMPLA\u00c7ANTS',listX+9,ly+15);ly+=24;
     subs.forEach((p,idx)=>{
       ctx.fillStyle=idx%2===0?'#f8f8f8':'#fff';ctx.fillRect(listX,ly,listW,19);
-      ctx.fillStyle='#555';ctx.font='9px Arial,sans-serif';ctx.fillText(p.pos||'\u2014',listX+6,ly+13);
-      ctx.fillStyle='#111';ctx.font='10.5px Arial,sans-serif';ctx.fillText(p.name.toUpperCase(),listX+28,ly+13);
+      ctx.fillStyle='#555';ctx.font='9px Barlow,Arial,sans-serif';ctx.fillText(p.pos||'\u2014',listX+6,ly+13);
+      ctx.fillStyle='#111';ctx.font='10.5px Barlow,Arial,sans-serif';ctx.fillText(p.name.toUpperCase(),listX+28,ly+13);
       ctx.strokeStyle='#ececec';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(listX,ly+19);ctx.lineTo(listX+listW,ly+19);ctx.stroke();
       ly+=19;
     });
@@ -1714,16 +1715,16 @@ async function buildSheet(){
   // Notes
   const ny=Math.max(ly+14,CH-175);
   ctx.fillStyle='#1a1a1a';ctx.fillRect(listX,ny,listW,22);
-  ctx.fillStyle='#fff';ctx.font='bold 10px Arial,sans-serif';ctx.textAlign='left';ctx.fillText('CONSIGNES DU COACH',listX+8,ny+15);
+  ctx.fillStyle='#fff';ctx.font='bold 10px Barlow,Arial,sans-serif';ctx.textAlign='left';ctx.fillText('CONSIGNES DU COACH',listX+8,ny+15);
   ctx.strokeStyle='#ddd';ctx.lineWidth=1;ctx.strokeRect(listX,ny+22,listW,CH-ny-46);
-  ctx.fillStyle='#333';ctx.font='10px Arial,sans-serif';
+  ctx.fillStyle='#333';ctx.font='10px Barlow,Arial,sans-serif';
   let ny2=ny+38;
   (mi.notes||'').split('\n').forEach(line=>{
     wrapTxt(ctx,line,listW-18).forEach(l=>{ctx.fillText(l,listX+9,ny2);ny2+=14;});
   });
   // Footer
   ctx.fillStyle='#f5f5f5';ctx.fillRect(0,CH-22,CW,22);
-  ctx.fillStyle='#aaa';ctx.font='9px Arial,sans-serif';ctx.textAlign='center';
+  ctx.fillStyle='#aaa';ctx.font='9px Barlow,Arial,sans-serif';ctx.textAlign='center';
   ctx.fillText('VSF Football \u2014 Feuille de match \u00b7 VSF Football Manager',CW/2,CH-7);
   return sc;
 }
@@ -1930,7 +1931,7 @@ function checkStorage(){
   if(!localStorage.getItem('vsf2')){
     if(fsSupported){
       msg.innerHTML='Aucune donn\u00e9e sur cet appareil. Ouvre ton <b>fichier de sauvegarde</b> (.json) pour le lier, ou cr\u00e9es-en un depuis Gestion.';
-      var rb=document.getElementById('sb-restore'); if(rb){ rb.innerHTML='\uD83D\uDCC2 Ouvrir mon fichier'; rb.setAttribute('onclick','linkFileOpen()'); }
+      var rb=document.getElementById('sb-restore'); if(rb){ rb.innerHTML='<svg class="vic" width="15" height="15" aria-hidden="true"><use href="#vsf-upload"></use></svg> Ouvrir mon fichier'; rb.setAttribute('onclick','linkFileOpen()'); }
     } else {
       msg.innerHTML='Aucune donn\u00e9e enregistr\u00e9e sur cet appareil. Si vous avez un fichier de sauvegarde (.json), cliquez pour le restaurer.';
     }
@@ -1972,7 +1973,7 @@ function backupReminder(){
     const lr=parseInt(localStorage.getItem(KR)||'0',10);
     if((now-last)>WK && (now-lr)>DY){
       localStorage.setItem(KR,String(now));
-      setTimeout(()=>{ try{toast('\uD83D\uDCBE Pense \u00e0 sauvegarder tes compos (Exporter JSON) \u2014 derni\u00e8re sauvegarde > 7 jours');}catch(e){} },3500);
+      setTimeout(()=>{ try{toast('Pense \u00e0 sauvegarder tes compos (Exporter JSON) \u2014 derni\u00e8re sauvegarde > 7 jours');}catch(e){} },3500);
     }
   }catch(e){}
 }

@@ -5,7 +5,7 @@
    - Autres ressources same-origin (icones, manifeste) : CACHE D'ABORD, repli reseau.
    Les donnees (localStorage cle vsf2) ne sont PAS gerees ici : elles vivent
    dans le navigateur et ne sont jamais touchees par ce worker. */
-const CACHE = 'vsf-compos-v2';
+const CACHE = 'vsf-compos-v3';
 const ASSETS = [
   './',
   './index.html',
